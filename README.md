@@ -17,7 +17,27 @@ This script reads and writes that data point directly via USB.
 - USB cable to the BRC3600 (VID `0x108C`, PID `0x01C0`)
 - Bike powered on
 
-## Usage
+## Two ways to use it
+
+### 🌐 Option 1 — Web version (easiest, no install)
+
+Just plug in the USB cable and open the website:
+
+**➜ [tune.pc-online.me](https://tune.pc-online.me)**
+
+- Works in any modern **Chrome** or **Edge** browser (WebUSB required)
+- No Python, no libusb, no command line
+- The **service reset feature is free** — no license required
+- Available in Dutch 🇳🇱 and English 🇬🇧
+- Steps: connect BRC3600 via USB → click "Connect to bike" → open the "Reset service warning" panel → read status → pick interval → reset
+
+The site also offers paid speed-tuning services which do require a license,
+but the service reset shown in this repo is free to use.
+
+### 🐍 Option 2 — Python script (this repo)
+
+For advanced users, offline use, scripting, or if you don't want to trust
+a third-party website with your bike:
 
 ```bash
 # Read current service status and odometer (safe, read-only)
