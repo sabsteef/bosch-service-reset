@@ -78,6 +78,22 @@ The DiagTool writes it via a plain MessageBus SET command.
 A successful write returns a bare 5-byte WRITE_ACK (type=3, no status byte).
 The script verifies by re-reading SERVICE_DUE after the write.
 
+### ⚠ One-way only — you cannot lower the service due
+
+The Bosch bike **only accepts SERVICE_DUE writes that INCREASE the value**.
+If you send a lower value:
+
+- The BRC still returns an ARM ack for the frame (looks fine at the transport level)
+- The bike sends **no response frame** and does **not persist** the new value
+- On some hosts the USB pipe stays stuck (Chrome WebUSB is especially prone) —
+  a fresh session / hard refresh is needed to recover
+
+The default flow of this script (`--interval N`) adds the interval to the
+**current odometer** for the next service, which is almost always higher than
+the previous due. If you want to postpone the next service by a fixed amount
+without moving the odometer baseline, add the interval to the existing due
+instead (read SERVICE_DUE first, then `--odometer <current_due + N*1000>`).
+
 ### Factory defaults
 
 - First service interval: **500 km**

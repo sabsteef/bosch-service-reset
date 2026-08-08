@@ -21,6 +21,11 @@ Discovery: SERVICE_DUE = ReadableWritableSubscribable DataPoint
   Address: 0x2185 (service=0xa1, param=0x85)
   Protobuf: { Timestamp { int64 value = 1 }, int32 odometer = 2 }
   Source: bdp-messagebus-1.2.3.jar RemoteControlAddresses enum
+
+IMPORTANT: One-way only. The bike only accepts SERVICE_DUE writes that
+INCREASE the value. Lower values are silently rejected (no response frame,
+USB pipe typically stalls). This script blocks such writes by default; use
+--force to attempt them anyway (test only).
 """
 import argparse
 import struct
@@ -388,6 +393,10 @@ def main():
                     help="Custom timestamp (default: 3588192000 = far future)")
     ap.add_argument("--odometer", type=int, default=None,
                     help="Custom odometer value (default: current + interval)")
+    ap.add_argument("--force", action="store_true",
+                    help="Attempt the write even if it would LOWER the current "
+                         "SERVICE_DUE (Bosch bikes silently reject lowers — "
+                         "the USB pipe usually stalls; use only for testing)")
     args = ap.parse_args()
 
     dev = open_brc(verbose=True)
@@ -399,6 +408,7 @@ def main():
 
     r = read_service_due(dev, seq)
     seq += 1
+    existing_due = None  # will hold the current SERVICE_DUE odometer (field 2)
     if r:
         print(f"  Raw response: {r.hex()}")
         if len(r) >= 6:
@@ -417,8 +427,12 @@ def main():
                                     print(f"    field {fnum}: {val}")
                             elif fnum == 2 and wtype == 'varint':
                                 print(f"    field {fnum}: {val} (odometer -- {val/1000:.1f} km)")
+                                if existing_due is None:
+                                    existing_due = val
                             else:
                                 print(f"    field {fnum}: {val}")
+                        if existing_due is not None:
+                            break  # got what we need, don't parse other offsets
                 except Exception:
                     pass
 
@@ -444,10 +458,26 @@ def main():
     print(f"\n{'='*60}")
     print(f"SERVICE RESET PLAN:")
     print(f"  timestamp:      {ts} ({'(far future)' if ts > 2000000000 else time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(ts))})")
-    print(f"  current km:     {odo / 1000:.1f} km" if odo else "")
+    if odo:
+        print(f"  current km:     {odo / 1000:.1f} km")
+    if existing_due is not None:
+        print(f"  existing due:   {existing_due / 1000:.1f} km")
     print(f"  next service:   {odo_write / 1000:.1f} km (+{args.interval} km interval)")
     print(f"  odometer raw:   {odo_write}")
     print(f"{'='*60}")
+
+    # BOSCH RULE: SERVICE_DUE writes that LOWER the value are silently rejected.
+    # The BRC returns an ARM ack but the bike sends no response and the value
+    # does not persist. On some hosts the USB pipe also stays stuck.
+    if existing_due is not None and odo_write < existing_due:
+        print(f"\n[BLOCKED] Cannot lower SERVICE_DUE ({existing_due / 1000:.1f} km) "
+              f"to {odo_write / 1000:.1f} km.")
+        print(f"  Bosch bikes only accept writes that INCREASE the value.")
+        print(f"  A lower write would be silently rejected.")
+        print(f"  Pick an interval >= {(existing_due - odo) // 1000 + 1} km, "
+              f"or pass --odometer >= {existing_due + 1}, or --force to try anyway.")
+        if not getattr(args, 'force', False):
+            return
 
     if not args.confirm:
         print("\n[DRY-RUN] Add --confirm to actually write.")
