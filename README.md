@@ -98,4 +98,4 @@ by a qualified mechanic at appropriate intervals.
 
 ## License
 
-MIT
+GPL-3.0 — see [LICENSE](LICENSE)
